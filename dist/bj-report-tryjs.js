@@ -1,3 +1,62 @@
+(function(window, document){
+    function createHttpRequest()
+    {
+        if(window.ActiveXObject){
+            return new ActiveXObject("Microsoft.XMLHTTP");  
+        }
+        else if(window.XMLHttpRequest){
+            return new XMLHttpRequest();  
+        }  
+    }
+    function AliLogTracker(host,project,logstore)
+    {
+        this.uri_ = 'http://' + project + '.' + host + '/logstores/' + logstore + '/track?APIVersion=0.6.0';
+        this.params_=new Array();
+        this.httpRequest_ = createHttpRequest();
+    }
+    AliLogTracker.prototype = {
+        push: function(key,value) {
+            if(!key || !value) {
+                return;
+            }
+            this.params_.push(key);
+            this.params_.push(value);
+        },
+        logger: function()
+        {
+            var url = this.uri_;
+            var k = 0;
+            while(this.params_.length > 0)
+            {
+                if(k % 2 == 0)
+                {
+                    url += '&' + encodeURIComponent(this.params_.shift());
+                }
+                else
+                {
+                    url += '=' + encodeURIComponent(this.params_.shift());
+                }
+                ++k;
+            }
+            try
+            {
+                this.httpRequest_.open("GET",url,true);
+                this.httpRequest_.send(null);
+            }
+            catch (ex) 
+            {
+                if (window && window.console && typeof window.console.log === 'function') 
+                {
+                    console.log("Failed to log to ali log service because of this exception:\n" + ex);
+                    console.log("Failed log data:", url);
+                }
+            }
+            
+        }
+    };
+    window.Tracker = AliLogTracker;
+})(window, document);
+
 /*!
  * @module report
  * @author kael, chriscai
@@ -7,6 +66,8 @@
  */
 var BJ_REPORT = (function(global) {
     if (global.BJ_REPORT) return global.BJ_REPORT;
+
+    var logger;
 
     var _error = [];
     var _error_map = {};
@@ -112,44 +173,20 @@ var BJ_REPORT = (function(global) {
         return stack;
     };
 
-    var _error_tostring = function(error, index) {
-        var param = [];
-        var params = [];
-        var stringify = [];
-        if (_isOBJ(error)) {
-            error.level = error.level || _config.level;
-            for (var key in error) {
-                var value = error[key];
-                if (!_isEmpty(value)) {
-                    if (_isOBJ(value)) {
-                        try {
-                            value = JSON.stringify(value);
-                        } catch (err) {
-                            value = "[BJ_REPORT detect value stringify error] " + err.toString();
-                        }
-                    }
-                    stringify.push(key + ":" + value);
-                    param.push(key + "=" + encodeURIComponent(value));
-                    params.push(key + "[" + index + "]=" + encodeURIComponent(value));
-                }
-            }
-        }
-
-        // msg[0]=msg&target[0]=target -- combo report
-        // msg:msg,target:target -- ignore
-        // msg=msg&target=target -- report with out combo
-        return [params.join("&"), stringify.join(","), param.join("&")];
+    var _error_tostring = function(error) {
+        return JSON.stringify(error);
     };
 
     var _imgs = [];
-    var _submit = function(url) {
-        if (_config.submit) {
-            _config.submit(url);
-        } else {
-            var _img = new Image();
-            _imgs.push(_img);
-            _img.src = url;
-        }
+    var _submit = function(message) {
+        logger.push('url', window.location.href);
+        logger.push('message', message);
+        logger.push('count', 1);
+        logger.push('type', 'js-error');
+        logger.push('level', '1')
+        logger.push('ua', navigator.userAgent);
+        logger.push('time', new Date().getTime());
+        logger.logger();
     };
 
     var _is_repert = function(error) {
@@ -169,42 +206,9 @@ var BJ_REPORT = (function(global) {
             var error = _error.shift();
             // 重复上报
             if (_is_repert(error)) continue;
-            var error_str = _error_tostring(error, error_list.length);
-            if (_isOBJByType(_config.ignore, "Array")) {
-                for (var i = 0, l = _config.ignore.length; i < l; i++) {
-                    var rule = _config.ignore[i];
-                    if ((_isOBJByType(rule, "RegExp") && rule.test(error_str[1])) ||
-                        (_isOBJByType(rule, "Function") && rule(error, error_str[1]))) {
-                        isIgnore = true;
-                        break;
-                    }
-                }
-            }
-            if (!isIgnore) {
-                if (_config.combo) {
-                    error_list.push(error_str[0]);
-                } else {
-                    _submit(_config.report + error_str[2] + "&_t=" + (+new Date));
-                }
-                _config.onReport && (_config.onReport(_config.id, error));
-            }
-        }
-
-        // 合并上报
-        var count = error_list.length;
-        if (count) {
-            var comboReport = function() {
-                clearTimeout(comboTimeout);
-                _submit(_config.report + error_list.join("&") + "&count=" + error_list.length + "&_t=" + (+new Date));
-                comboTimeout = 0;
-                error_list = [];
-            };
-
-            if (isReoprtNow) {
-                comboReport(); // 立即上报
-            } else if (!comboTimeout) {
-                comboTimeout = setTimeout(comboReport, _config.delay); // 延迟上报
-            }
+            var error_str = _error_tostring(error);
+            _submit(error_str);
+            _config.onReport && (_config.onReport(_config.id, error));
         }
     };
 
@@ -273,6 +277,7 @@ var BJ_REPORT = (function(global) {
                     _config[key] = config[key];
                 }
             }
+            logger = new window.Tracker(_config.endpoint,_config.project,_config.logstore);
             // 没有设置id将不上报
             var id = parseInt(_config.id, 10);
             if (id) {
