@@ -10,7 +10,7 @@
     }
     function AliLogTracker(host,project,logstore)
     {
-        this.uri_ = 'http://' + project + '.' + host + '/logstores/' + logstore + '/track?APIVersion=0.6.0';
+        this.uri_ = 'https://' + project + '.' + host + '/logstores/' + logstore + '/track?APIVersion=0.6.0';
         this.params_=new Array();
         this.httpRequest_ = createHttpRequest();
     }

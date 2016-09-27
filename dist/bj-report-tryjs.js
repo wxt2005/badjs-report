@@ -10,7 +10,7 @@
     }
     function AliLogTracker(host,project,logstore)
     {
-        this.uri_ = 'http://' + project + '.' + host + '/logstores/' + logstore + '/track?APIVersion=0.6.0';
+        this.uri_ = 'https://' + project + '.' + host + '/logstores/' + logstore + '/track?APIVersion=0.6.0';
         this.params_=new Array();
         this.httpRequest_ = createHttpRequest();
     }
@@ -183,7 +183,7 @@ var BJ_REPORT = (function(global) {
         logger.push('message', message);
         logger.push('count', 1);
         logger.push('type', 'js-error');
-        logger.push('level', '1')
+        logger.push('level', '1');
         logger.push('ua', navigator.userAgent);
         logger.push('time', new Date().getTime());
         logger.logger();
