@@ -10,7 +10,7 @@
     }
     function AliLogTracker(host,project,logstore)
     {
-        this.uri_ = 'https://' + project + '.' + host + '/logstores/' + logstore + '/track?APIVersion=0.6.0';
+        this.uri_ = '//' + project + '.' + host + '/logstores/' + logstore + '/track?APIVersion=0.6.0';
         this.params_=new Array();
         this.httpRequest_ = createHttpRequest();
     }
@@ -178,13 +178,17 @@ var BJ_REPORT = (function(global) {
     };
 
     var _imgs = [];
-    var _submit = function(message) {
-        logger.push('url', window.location.href);
-        logger.push('message', message);
-        logger.push('count', 1);
-        logger.push('type', 'js-error');
-        logger.push('level', '1');
-        logger.push('ua', navigator.userAgent);
+    var _submit = function(error) {
+        var meta = error._meta_;
+        delete error._meta_;
+        for(var prop in meta){
+            if(meta.hasOwnProperty(prop)){
+                logger.push(prop, meta[prop]);
+            }
+        }
+        if(meta.type === 'js-error'){
+             logger.push('message', JSON.stringify(error));
+        }
         logger.push('time', new Date().getTime());
         logger.logger();
     };
@@ -192,6 +196,9 @@ var BJ_REPORT = (function(global) {
     var _is_repert = function(error) {
         if (!_isOBJ(error)) return true;
         var msg = error.msg;
+        if(!msg){
+            return false;
+        }
         var times = _error_map[msg] = (parseInt(_error_map[msg], 10) || 0) + 1;
         return times > _config.repeat;
     };
@@ -206,14 +213,29 @@ var BJ_REPORT = (function(global) {
             var error = _error.shift();
             // 重复上报
             if (_is_repert(error)) continue;
-            var error_str = _error_tostring(error);
-            _submit(error_str);
-            _config.onReport && (_config.onReport(_config.id, error));
+            if (!error._meta_.type){
+                continue;
+            }
+            if (_isOBJByType(_config.ignore, "Array")) {
+                for (var i = 0, l = _config.ignore.length; i < l; i++) {
+                    var rule = _config.ignore[i];
+                    var error_str = JSON.stringify(error);
+                    if ((_isOBJByType(rule, "RegExp") && rule.test(error_str)) ||
+                        (_isOBJByType(rule, "Function") && rule(error, error_str))) {
+                        isIgnore = true;
+                        break;
+                    }
+                }
+            }
+            if (!isIgnore) {
+                 _submit(error);
+                _config.onReport && (_config.onReport(_config.id, error));
+            }  
         }
     };
 
     var report = global.BJ_REPORT = {
-        push: function(msg) { // 将错误推到缓存池
+        push: function(msg, meta) { // 将错误推到缓存池
             // 抽样
             if (Math.random() >= _config.random) {
                 return report;
@@ -227,49 +249,32 @@ var BJ_REPORT = (function(global) {
             if (_config.ext && !data.ext) {
                 data.ext = _config.ext;
             }
-            // 在错误发生时获取页面链接
-            // https://github.com/BetterJS/badjs-report/issues/19
-            if (!data.from) {
-                data.from = encodeURIComponent(location.href);
-            }
+
+            data._meta_ = meta || {};
+
             _error.push(data);
             _send();
             return report;
         },
         report: function(msg) { // error report
-            msg && report.push(msg);
+            return this.error(msg);
+        },
+        error : function(msg, level){
+            msg && report.push(msg, {
+                'type' : 'js-error',
+                'level' : level || 4,
+                'url' : location.href,
+                'count' : 1,
+                'ua' : navigator.userAgent
+            });
             _send(true);
             return report;
         },
         info: function(msg) { // info report
-            if (!msg) {
-                return report;
-            }
-            if (_isOBJ(msg)) {
-                msg.level = 2;
-            } else {
-                msg = {
-                    msg: msg,
-                    level: 2
-                };
-            }
-            report.push(msg);
-            return report;
+            return this.error(msg, 1)
         },
         debug: function(msg) { // debug report
-            if (!msg) {
-                return report;
-            }
-            if (_isOBJ(msg)) {
-                msg.level = 1;
-            } else {
-                msg = {
-                    msg: msg,
-                    level: 1
-                };
-            }
-            report.push(msg);
-            return report;
+            return this.error(msg, 2);
         },
         init: function(config) { // 初始化
             if (_isOBJ(config)) {
