@@ -9,13 +9,7 @@
 ## Install
 
 ```shell
-$ npm install badjs-report
-```
-```shell
-$ bower install https://github.com/BetterJS/badjs-report.git
-```
-```shell
-$ lego install badjs-report --save
+$ npm install git+https://github.com/alexayan/badjs-report.git
 ```
 
 ## Getting Started
@@ -64,26 +58,15 @@ try{
 }
 ```
 <br/>
-#####  延迟上报
-```javascript
-BJ_REPORT.push("error msg");
 
-BJ_REPORT.push({
-  msg: "xx load error",                 // 错误信息
-  target: "xxx.js",                     // 错误的来源js
-  rowNum: 100,                          // 错误的行数
-  colNum: 100,                          // 错误的列数
-});
-
-BJ_REPORT.report();
-
-```
-当 combo = 1 时候的， 调用 report ，根据缓冲池中的数据一条条上报;<br/>
-当 combo = 0 时候的， 会延迟 delay 毫秒，再合并上报
-<br/>
 #####  可以链式调用
 ```javascript
-BJ_REPORT.init({id: 1}).push("error msg").report("error msg 2");
+BJ_REPORT.init({...}).report("error msg 2");
+```
+
+#####  error 上报
+```javascript
+BJ_REPORT.error("error"); // 用户错误日志
 ```
 
 #####  info 上报
