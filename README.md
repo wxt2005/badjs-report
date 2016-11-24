@@ -22,7 +22,8 @@ BJ_REPORT.init({
   id: 1, // 不指定 id 将不上报
   endpoint: 'cn-hangzhou.log.aliyuncs.com',
   project : 'f2e',
-  logstore: 'f2e'                                
+  logstore: 'f2e',
+  app : 'your app name'                                
 });
 ```
 ##### 配置说明

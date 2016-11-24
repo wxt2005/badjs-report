@@ -190,6 +190,7 @@ var BJ_REPORT = (function(global) {
              logger.push('message', JSON.stringify(error));
         }
         logger.push('time', new Date().getTime());
+        logger.push('app', _config.app);
         logger.logger();
     };
 
